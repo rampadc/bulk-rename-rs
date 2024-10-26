@@ -8,7 +8,7 @@ rust-version = "1.76"
 
 [package.metadata.docs.rs]
 all-features = true
-targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
+targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 egui = "0.29"
@@ -25,6 +25,10 @@ serde = { version = "1", features = ["derive"] }
 egui-phosphor = "0.7.3"
 rfd = "0.15.0"
 resolve-path = "0.1.0"
+egui-selectable-table = "0.1.0"
+strum_macros = "0.26.4"
+strum = "0.26.3"
+egui_extras = "0.29.1"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

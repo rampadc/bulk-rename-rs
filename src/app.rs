@@ -1,7 +1,12 @@
+use std::cmp::Ordering;
 use std::fs;
 use std::path::Path;
-use egui::{Align, Id, Layout};
+use egui::{Align, Layout, Response, SelectableLabel, Ui};
+use egui_extras::Column;
+use egui_selectable_table::{ColumnOperations, ColumnOrdering, SelectableRow, SelectableTable, SortOrder};
 use resolve_path::PathResolveExt;
+use strum_macros::EnumIter;
+use strum::IntoEnumIterator;
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -9,6 +14,11 @@ use resolve_path::PathResolveExt;
 pub struct TemplateApp {
     directory_path: String,
     working_path: String,
+
+    #[serde(skip)]
+    file_browser_table: SelectableTable<FileBrowserRow, FileBrowserColumns, FileBrowserConfig>,
+    #[serde(skip)]
+    file_browser_config: FileBrowserConfig,
 }
 
 impl Default for TemplateApp {
@@ -16,6 +26,8 @@ impl Default for TemplateApp {
         Self {
             directory_path: "~".resolve().to_str().unwrap().to_string(),
             working_path: "~".resolve().to_str().unwrap().to_string(),
+            file_browser_table: SelectableTable::new(FileBrowserColumns::iter().collect()),
+            file_browser_config: FileBrowserConfig {},
         }
     }
 }
@@ -36,11 +48,6 @@ impl TemplateApp {
         }
 
         Default::default()
-    }
-
-    fn is_valid_path(path_str: &str) -> bool {
-        let path = Path::new(path_str);
-        path.exists()
     }
 }
 
@@ -72,6 +79,7 @@ impl eframe::App for TemplateApp {
                 egui::widgets::global_theme_preference_buttons(ui);
             });
         });
+
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.horizontal_top(|ui| {
@@ -120,10 +128,19 @@ impl eframe::App for TemplateApp {
             });
             ui.separator();
 
-            ui.add(egui::github_link_file!(
-                "https://github.com/emilk/eframe_template/blob/main/",
-                "Source code."
-            ));
+            self.file_browser_table.show_ui(ui, |builder| {
+                let mut table = builder
+                   .striped(true)
+                   .resizable(true)
+                   .cell_layout(Layout::left_to_right(Align::LEFT));
+                for _ in FileBrowserColumns::iter() {
+                    table = table.column(Column::initial(150.0))
+                }
+                table
+            });
+
+            ui.separator();
+
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 powered_by_egui_and_eframe(ui);
@@ -145,4 +162,97 @@ fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
         );
         ui.label(".");
     });
+}
+
+// File browser config
+
+#[derive(Default, Clone, Copy)]
+pub struct FileBrowserConfig {}
+
+#[derive(Clone, Default)]
+struct FileBrowserRow {
+    name: String,
+    new_name: String,
+    size: i64,
+    date_modified: String,
+    date_created: String,
+    kind: String,
+}
+#[derive(Eq, PartialEq, Debug, Ord, PartialOrd, Clone, Copy, Hash, Default, EnumIter)]
+enum FileBrowserColumns {
+    #[default]
+    Name,
+    NewName,
+    Size,
+    DateModified,
+    DateCreated,
+    Kind,
+}
+
+impl ColumnOperations<FileBrowserRow, FileBrowserColumns, FileBrowserConfig> for FileBrowserColumns {
+    fn create_header(&self, ui: &mut Ui, sort_order: Option<SortOrder>, _table: &mut SelectableTable<FileBrowserRow, FileBrowserColumns, FileBrowserConfig>) -> Option<Response> {
+        let text = match self {
+            FileBrowserColumns::Name => "Name",
+            FileBrowserColumns::NewName => "New Name",
+            FileBrowserColumns::Size => "Size",
+            FileBrowserColumns::DateModified => "Date Modified",
+            FileBrowserColumns::DateCreated => "Date Created",
+            FileBrowserColumns::Kind => "Kind",
+        }.to_string();
+
+        let selected = if let Some(sort) = sort_order {
+            match sort {
+                SortOrder::Ascending => format!("{} {}", text, egui_phosphor::regular::SORT_ASCENDING),
+                SortOrder::Descending => format!("{} {}", text, egui_phosphor::regular::SORT_DESCENDING),
+            }.to_string();
+            true
+        } else {
+            false
+        };
+        let response = ui.add_sized(ui.available_size(), SelectableLabel::new(selected, text));
+        Some(response)
+    }
+
+    fn create_table_row(&self, ui: &mut Ui, row: &SelectableRow<FileBrowserRow, FileBrowserColumns>, _column_selected: bool, _table: &mut SelectableTable<FileBrowserRow, FileBrowserColumns, FileBrowserConfig>) -> Response {
+        let row_data = &row.row_data;
+        let row_text = match self {
+            FileBrowserColumns::Name => row_data.name.to_string(),
+            FileBrowserColumns::NewName => row_data.new_name.to_string(),
+            FileBrowserColumns::Size => row_data.size.to_string(),
+            FileBrowserColumns::DateModified => row_data.date_modified.to_string(),
+            FileBrowserColumns::DateCreated => row_data.date_created.to_string(),
+            FileBrowserColumns::Kind => row_data.kind.to_string(),
+        };
+
+        // let _is_selected = column_selected;
+        let label = ui.add_sized(
+            ui.available_size(),
+            egui::Label::new(row_text),
+        );
+        label
+    }
+
+    fn column_text(&self, row: &FileBrowserRow) -> String {
+        match self {
+            FileBrowserColumns::Name => row.name.to_string(),
+            FileBrowserColumns::NewName => row.new_name.to_string(),
+            FileBrowserColumns::Size => row.size.to_string(),
+            FileBrowserColumns::DateModified => row.date_modified.to_string(),
+            FileBrowserColumns::DateCreated => row.date_created.to_string(),
+            FileBrowserColumns::Kind => row.kind.to_string(),
+        }
+    }
+}
+
+impl ColumnOrdering<FileBrowserRow> for FileBrowserColumns {
+    fn order_by(&self, row_1: &FileBrowserRow, row_2: &FileBrowserRow) -> Ordering {
+        match self {
+            FileBrowserColumns::Name => row_1.name.cmp(&row_2.name),
+            FileBrowserColumns::NewName => row_1.new_name.cmp(&row_2.new_name),
+            FileBrowserColumns::Size => row_1.size.cmp(&row_2.size),
+            FileBrowserColumns::DateModified => row_1.date_modified.cmp(&row_2.date_modified),
+            FileBrowserColumns::DateCreated => row_1.date_created.cmp(&row_2.date_created),
+            FileBrowserColumns::Kind => row_1.kind.cmp(&row_2.kind),
+        }
+    }
 }
