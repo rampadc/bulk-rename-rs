@@ -75,6 +75,7 @@ impl eframe::App for TemplateApp {
             // The top panel is often a good place for a menu bar:
             egui::menu::bar(ui, |ui| {
                 egui::widgets::global_theme_preference_buttons(ui);
+                ui.label("[Use Ctrl to multi-select, or drag]");
             });
         });
 
@@ -157,11 +158,15 @@ impl eframe::App for TemplateApp {
                 table
             });
 
-            if self.path_changed || self.is_first_load {
-                self.is_first_load = false;
+            // Ensure that browser is filled properly
+            let paths = fs::read_dir(self.directory_path.as_str()).unwrap();
+            if paths.count() > 0 && self.file_browser_table.total_rows() == 0 {
+                self.is_first_load = true;
+            }
 
-                let paths = fs::read_dir(self.directory_path.as_str()).unwrap();
+            if self.path_changed || self.is_first_load {
                 self.file_browser_table.clear_all_rows();
+                let paths = fs::read_dir(self.directory_path.as_str()).unwrap();
                 for path in paths {
                     if let Ok(path) = path {
                         self.file_browser_table.add_modify_row(|_| {
@@ -210,6 +215,7 @@ impl eframe::App for TemplateApp {
                 self.file_browser_table.set_auto_reload(None);
 
                 self.path_changed = false;
+                self.is_first_load = false;
             }
 
             ctx.request_repaint();
