@@ -52,7 +52,7 @@ impl TemplateApp {
 }
 
 impl eframe::App for TemplateApp {
-    /// Called by the frame work to save state before shutdown.
+    /// Called by the framework to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, eframe::APP_KEY, self);
     }
@@ -128,6 +128,56 @@ impl eframe::App for TemplateApp {
             });
             ui.separator();
 
+            self.file_browser_table.set_select_full_row(true);
+
+            let paths = fs::read_dir(self.directory_path.as_str()).unwrap();
+            self.file_browser_table.clear_all_rows();
+            
+            for path in paths {
+                if let Ok(path) = path {
+                    self.file_browser_table.add_modify_row(|_| {
+                        let mut new_row = FileBrowserRow {
+                            name: "".to_string(),
+                            new_name: "".to_string(),
+                            size: 0,
+                            date_modified: "".to_string(),
+                            date_created: "".to_string(),
+                            kind: "".to_string(),
+                            path_type: "".to_string(),
+                        };
+                        if let Ok(name) = path.file_name().into_string() {
+                            new_row.name = name.clone();
+                            new_row.new_name = name.clone();
+                        }
+                        if let Ok(metadata) = path.metadata() {
+                            new_row.kind = format!("{:?}", metadata.file_type());
+                            // let is_file = metadata.is_file();
+                            // let is_dir = metadata.is_dir();
+                            if let Ok(date_created) = metadata.created() {
+                                new_row.date_created = format!("{:?}", date_created);
+                            }
+                            if let Ok(date_modified) = metadata.modified() {
+                                new_row.date_modified = format!("{:?}", date_modified);
+                            }
+                            new_row.size = metadata.len();
+
+                            if metadata.is_dir() {
+                                new_row.path_type = format!("{}", egui_phosphor::regular::FOLDER);
+                            } else if metadata.is_file() {
+                                new_row.path_type = format!("{}", egui_phosphor::regular::FILE);
+                            } else if metadata.is_symlink() {
+                                new_row.path_type = format!("{}", egui_phosphor::regular::LINK_SIMPLE_HORIZONTAL);
+                            }
+                        }
+                        Some(new_row)
+                    });
+                } else {
+                    eprintln!("Error getting path: {}", path.unwrap_err());
+                }
+            }
+            self.file_browser_table.recreate_rows();
+            self.file_browser_table.set_auto_reload(None);
+
             self.file_browser_table.show_ui(ui, |builder| {
                 let mut table = builder
                    .striped(true)
@@ -173,14 +223,16 @@ pub struct FileBrowserConfig {}
 struct FileBrowserRow {
     name: String,
     new_name: String,
-    size: i64,
+    size: u64,
     date_modified: String,
     date_created: String,
     kind: String,
+    path_type: String,
 }
 #[derive(Eq, PartialEq, Debug, Ord, PartialOrd, Clone, Copy, Hash, Default, EnumIter)]
 enum FileBrowserColumns {
     #[default]
+    PathType,
     Name,
     NewName,
     Size,
@@ -192,6 +244,7 @@ enum FileBrowserColumns {
 impl ColumnOperations<FileBrowserRow, FileBrowserColumns, FileBrowserConfig> for FileBrowserColumns {
     fn create_header(&self, ui: &mut Ui, sort_order: Option<SortOrder>, _table: &mut SelectableTable<FileBrowserRow, FileBrowserColumns, FileBrowserConfig>) -> Option<Response> {
         let text = match self {
+            FileBrowserColumns::PathType => " ",
             FileBrowserColumns::Name => "Name",
             FileBrowserColumns::NewName => "New Name",
             FileBrowserColumns::Size => "Size",
@@ -216,6 +269,7 @@ impl ColumnOperations<FileBrowserRow, FileBrowserColumns, FileBrowserConfig> for
     fn create_table_row(&self, ui: &mut Ui, row: &SelectableRow<FileBrowserRow, FileBrowserColumns>, _column_selected: bool, _table: &mut SelectableTable<FileBrowserRow, FileBrowserColumns, FileBrowserConfig>) -> Response {
         let row_data = &row.row_data;
         let row_text = match self {
+            FileBrowserColumns::PathType => row_data.path_type.to_string(),
             FileBrowserColumns::Name => row_data.name.to_string(),
             FileBrowserColumns::NewName => row_data.new_name.to_string(),
             FileBrowserColumns::Size => row_data.size.to_string(),
@@ -234,6 +288,7 @@ impl ColumnOperations<FileBrowserRow, FileBrowserColumns, FileBrowserConfig> for
 
     fn column_text(&self, row: &FileBrowserRow) -> String {
         match self {
+            FileBrowserColumns::PathType => row.path_type.to_string(),
             FileBrowserColumns::Name => row.name.to_string(),
             FileBrowserColumns::NewName => row.new_name.to_string(),
             FileBrowserColumns::Size => row.size.to_string(),
@@ -247,6 +302,7 @@ impl ColumnOperations<FileBrowserRow, FileBrowserColumns, FileBrowserConfig> for
 impl ColumnOrdering<FileBrowserRow> for FileBrowserColumns {
     fn order_by(&self, row_1: &FileBrowserRow, row_2: &FileBrowserRow) -> Ordering {
         match self {
+            FileBrowserColumns::PathType => row_1.path_type.cmp(&row_2.path_type),
             FileBrowserColumns::Name => row_1.name.cmp(&row_2.name),
             FileBrowserColumns::NewName => row_1.new_name.cmp(&row_2.new_name),
             FileBrowserColumns::Size => row_1.size.cmp(&row_2.size),
