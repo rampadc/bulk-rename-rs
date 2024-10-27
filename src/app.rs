@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use egui::{Align, Label, Layout, Response, RichText, SelectableLabel, Ui};
+use egui::{Align, Layout, Response, RichText, SelectableLabel, Ui};
 use egui_extras::Column;
 use egui_selectable_table::{ColumnOperations, ColumnOrdering, SelectableRow, SelectableTable, SortOrder};
 use mime_db::lookup;
@@ -18,6 +18,9 @@ use strum_macros::EnumIter;
 pub struct TemplateApp {
     directory_path: String,
     working_path: String,
+    path_changed: bool,
+
+    is_first_load: bool,
 
     #[serde(skip)]
     file_browser_table: SelectableTable<FileBrowserRow, FileBrowserColumns, FileBrowserConfig>,
@@ -32,6 +35,8 @@ impl Default for TemplateApp {
             working_path: "~".resolve().to_str().unwrap().to_string(),
             file_browser_table: SelectableTable::new(FileBrowserColumns::iter().collect()),
             file_browser_config: FileBrowserConfig {},
+            path_changed: false,
+            is_first_load: true,
         }
     }
 }
@@ -89,6 +94,7 @@ impl eframe::App for TemplateApp {
                             if path.exists() {
                                 self.directory_path = path.to_str().unwrap_or("").to_string();
                                 self.working_path = self.directory_path.clone();
+                                self.path_changed = true;
                             }
                         }
                         Err(err) => {
@@ -113,6 +119,7 @@ impl eframe::App for TemplateApp {
                         self.working_path = self.directory_path.clone();
                     } else {
                         self.directory_path = self.working_path.clone();
+                        self.path_changed = true;
                     }
                 }
 
@@ -120,6 +127,7 @@ impl eframe::App for TemplateApp {
                     if let Some(path) = rfd::FileDialog::new().set_directory(&self.directory_path).pick_folder() {
                         self.directory_path = path.display().to_string();
                         self.working_path = self.directory_path.clone();
+                        self.path_changed = true;
                     } else {
                         eprintln!("Error selecting a directory");
                         // Handle the error, e.g., display an error message to the user
@@ -129,56 +137,6 @@ impl eframe::App for TemplateApp {
             ui.separator();
 
             self.file_browser_table.set_select_full_row(true);
-
-            let paths = fs::read_dir(self.directory_path.as_str()).unwrap();
-            self.file_browser_table.clear_all_rows();
-
-            for path in paths {
-                if let Ok(path) = path {
-                    self.file_browser_table.add_modify_row(|_| {
-                        let mut new_row = FileBrowserRow {
-                            name: "".to_string(),
-                            new_name: "".to_string(),
-                            size_ui: "--".to_string(),
-                            date_modified: "".to_string(),
-                            date_created: "".to_string(),
-                            kind: "".to_string(),
-                            path_type: "*".to_string(),
-                            size: 0,
-                        };
-                        if let Ok(name) = path.file_name().into_string() {
-                            new_row.name = name.clone();
-                            new_row.new_name = name.clone();
-                        }
-                        if let Ok(metadata) = path.metadata() {
-                            if let Ok(date_created) = metadata.created() {
-                                new_row.date_created = format_system_time(date_created);
-                            }
-                            if let Ok(date_modified) = metadata.modified() {
-                                new_row.date_modified = format_system_time(date_modified);
-                            }
-                            new_row.size_ui = format_size(metadata.len());
-                            new_row.size = metadata.len();
-
-                            if metadata.is_dir() {
-                                new_row.path_type = format!("{}", egui_phosphor::regular::FOLDER);
-                                new_row.kind = "Folder".to_string();
-                            } else if metadata.is_file() {
-                                new_row.path_type = format!("{}", egui_phosphor::regular::FILE);
-                                new_row.kind = format_file_type(&path.path());
-                            } else if metadata.is_symlink() {
-                                new_row.path_type = format!("{}", egui_phosphor::regular::LINK_SIMPLE_HORIZONTAL);
-                                new_row.kind = "symlink".to_string();
-                            }
-                        }
-                        Some(new_row)
-                    });
-                } else {
-                    eprintln!("Error getting path: {}", path.unwrap_err());
-                }
-            }
-            self.file_browser_table.recreate_rows();
-            self.file_browser_table.set_auto_reload(None);
 
             self.file_browser_table.show_ui(ui, |builder| {
                 let mut table = builder
@@ -198,6 +156,63 @@ impl eframe::App for TemplateApp {
                 }
                 table
             });
+
+            if self.path_changed || self.is_first_load {
+                self.is_first_load = false;
+
+                let paths = fs::read_dir(self.directory_path.as_str()).unwrap();
+                self.file_browser_table.clear_all_rows();
+                for path in paths {
+                    if let Ok(path) = path {
+                        self.file_browser_table.add_modify_row(|_| {
+                            let mut new_row = FileBrowserRow {
+                                name: "".to_string(),
+                                new_name: "".to_string(),
+                                size_ui: "--".to_string(),
+                                date_modified: "".to_string(),
+                                date_created: "".to_string(),
+                                kind: "".to_string(),
+                                path_type: "*".to_string(),
+                                size: 0,
+                            };
+                            if let Ok(name) = path.file_name().into_string() {
+                                new_row.name = name.clone();
+                                new_row.new_name = name.clone();
+                            }
+                            if let Ok(metadata) = path.metadata() {
+                                if let Ok(date_created) = metadata.created() {
+                                    new_row.date_created = format_system_time(date_created);
+                                }
+                                if let Ok(date_modified) = metadata.modified() {
+                                    new_row.date_modified = format_system_time(date_modified);
+                                }
+                                new_row.size_ui = format_size(metadata.len());
+                                new_row.size = metadata.len();
+
+                                if metadata.is_dir() {
+                                    new_row.path_type = format!("{}", egui_phosphor::regular::FOLDER);
+                                    new_row.kind = "Folder".to_string();
+                                } else if metadata.is_file() {
+                                    new_row.path_type = format!("{}", egui_phosphor::regular::FILE);
+                                    new_row.kind = format_file_type(&path.path());
+                                } else if metadata.is_symlink() {
+                                    new_row.path_type = format!("{}", egui_phosphor::regular::LINK_SIMPLE_HORIZONTAL);
+                                    new_row.kind = "symlink".to_string();
+                                }
+                            }
+                            Some(new_row)
+                        });
+                    } else {
+                        eprintln!("Error getting path: {}", path.unwrap_err());
+                    }
+                }
+                self.file_browser_table.recreate_rows();
+                self.file_browser_table.set_auto_reload(None);
+
+                self.path_changed = false;
+            }
+
+            ctx.request_repaint();
         });
     }
 }
@@ -304,21 +319,29 @@ impl ColumnOperations<FileBrowserRow, FileBrowserColumns, FileBrowserConfig> for
         Some(response)
     }
 
-    fn create_table_row(&self, ui: &mut Ui, row: &SelectableRow<FileBrowserRow, FileBrowserColumns>, _column_selected: bool, _table: &mut SelectableTable<FileBrowserRow, FileBrowserColumns, FileBrowserConfig>) -> Response {
+    fn create_table_row(&self, ui: &mut Ui, row: &SelectableRow<FileBrowserRow, FileBrowserColumns>, column_selected: bool, table: &mut SelectableTable<FileBrowserRow, FileBrowserColumns, FileBrowserConfig>) -> Response {
         let row_data = &row.row_data;
         let row_text = self.assign_row_column(row_data);
 
-        match self {
+        let response = match self {
             FileBrowserColumns::PathType => {
                 // center aligned content
                 ui.add_sized(
                     ui.available_size(),
-                    Label::new(&row_text),
+                    SelectableLabel::new(column_selected, &row_text),
                 )
             }
             // left aligned content
-            _ => ui.add(Label::new(row_text)),
-        }
+            _ => ui.add(SelectableLabel::new(column_selected, row_text)),
+        };
+        response.context_menu(|ui| {
+            if ui.button("Select all items").clicked() {
+                table.select_all();
+                ui.close_menu();
+            }
+        });
+
+        response
     }
 
     fn column_text(&self, row: &FileBrowserRow) -> String {
