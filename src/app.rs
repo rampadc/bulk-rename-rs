@@ -1,12 +1,16 @@
-use std::cmp::Ordering;
-use std::fs;
-use std::path::Path;
-use egui::{Align, Layout, Response, SelectableLabel, Ui};
+use chrono::{DateTime, Utc};
+use egui::{Align, Label, Layout, Response, RichText, SelectableLabel, Ui};
 use egui_extras::Column;
 use egui_selectable_table::{ColumnOperations, ColumnOrdering, SelectableRow, SelectableTable, SortOrder};
+use mime_db::lookup;
 use resolve_path::PathResolveExt;
-use strum_macros::EnumIter;
+use std::cmp::Ordering;
+use std::fmt::Debug;
+use std::fs;
+use std::path::Path;
+use std::time::SystemTime;
 use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -65,18 +69,14 @@ impl eframe::App for TemplateApp {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
             egui::menu::bar(ui, |ui| {
-                // NOTE: no File->Quit on web pages!
-                let is_web = cfg!(target_arch = "wasm32");
-                if !is_web {
-                    ui.menu_button("File", |ui| {
-                        if ui.button("Quit").clicked() {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                        }
-                    });
-                    ui.add_space(16.0);
-                }
-
                 egui::widgets::global_theme_preference_buttons(ui);
+            });
+        });
+
+        egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
+            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+                powered_by_egui_and_eframe(ui);
+                egui::warn_if_debug_build(ui);
             });
         });
 
@@ -132,41 +132,41 @@ impl eframe::App for TemplateApp {
 
             let paths = fs::read_dir(self.directory_path.as_str()).unwrap();
             self.file_browser_table.clear_all_rows();
-            
+
             for path in paths {
                 if let Ok(path) = path {
                     self.file_browser_table.add_modify_row(|_| {
                         let mut new_row = FileBrowserRow {
                             name: "".to_string(),
                             new_name: "".to_string(),
-                            size: 0,
+                            size: "--".to_string(),
                             date_modified: "".to_string(),
                             date_created: "".to_string(),
                             kind: "".to_string(),
-                            path_type: "".to_string(),
+                            path_type: "*".to_string(),
                         };
                         if let Ok(name) = path.file_name().into_string() {
                             new_row.name = name.clone();
                             new_row.new_name = name.clone();
                         }
                         if let Ok(metadata) = path.metadata() {
-                            new_row.kind = format!("{:?}", metadata.file_type());
-                            // let is_file = metadata.is_file();
-                            // let is_dir = metadata.is_dir();
                             if let Ok(date_created) = metadata.created() {
-                                new_row.date_created = format!("{:?}", date_created);
+                                new_row.date_created = format_system_time(date_created);
                             }
                             if let Ok(date_modified) = metadata.modified() {
-                                new_row.date_modified = format!("{:?}", date_modified);
+                                new_row.date_modified = format_system_time(date_modified);
                             }
-                            new_row.size = metadata.len();
+                            new_row.size = format_size(metadata.len());
 
                             if metadata.is_dir() {
                                 new_row.path_type = format!("{}", egui_phosphor::regular::FOLDER);
+                                new_row.kind = "Folder".to_string();
                             } else if metadata.is_file() {
                                 new_row.path_type = format!("{}", egui_phosphor::regular::FILE);
+                                new_row.kind = format_file_type(&path.path());
                             } else if metadata.is_symlink() {
                                 new_row.path_type = format!("{}", egui_phosphor::regular::LINK_SIMPLE_HORIZONTAL);
+                                new_row.kind = "symlink".to_string();
                             }
                         }
                         Some(new_row)
@@ -180,21 +180,21 @@ impl eframe::App for TemplateApp {
 
             self.file_browser_table.show_ui(ui, |builder| {
                 let mut table = builder
-                   .striped(true)
-                   .resizable(true)
-                   .cell_layout(Layout::left_to_right(Align::LEFT));
-                for _ in FileBrowserColumns::iter() {
-                    table = table.column(Column::initial(150.0))
+                    .striped(true)
+                    .resizable(true)
+                    .cell_layout(Layout::left_to_right(Align::LEFT))
+                    .drag_to_scroll(false)
+                    .auto_shrink([false; 2]);
+
+                for fb_column in FileBrowserColumns::iter() {
+                    let mut column = Column::initial(150.0);
+                    if fb_column == FileBrowserColumns::PathType {
+                        column = column.at_least(25.0);
+                        column = column.at_most(25.0);
+                    }
+                    table = table.column(column);
                 }
                 table
-            });
-
-            ui.separator();
-
-
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                powered_by_egui_and_eframe(ui);
-                egui::warn_if_debug_build(ui);
             });
         });
     }
@@ -223,7 +223,7 @@ pub struct FileBrowserConfig {}
 struct FileBrowserRow {
     name: String,
     new_name: String,
-    size: u64,
+    size: String,
     date_modified: String,
     date_created: String,
     kind: String,
@@ -241,10 +241,44 @@ enum FileBrowserColumns {
     Kind,
 }
 
+fn format_file_type(path: &Path) -> String {
+    if let Some(file_extension) = path.extension().and_then(|ext| ext.to_str()) {
+        let mime_type = lookup(file_extension);
+        match mime_type {
+            Some(mime_type) => {
+                mime_type.to_string()
+            }
+            None => "Unknown".to_string(),
+        }
+    } else {
+        "Unknown".to_string()
+    }
+}
+
+fn format_size(size: u64) -> String {
+    let units = ["B", "KB", "MB", "GB", "TB", "PB"];
+    let mut i = 0;
+    let mut size_f = size as f64;
+
+    while size_f >= 1024.0 && i < units.len() - 1 {
+        size_f /= 1024.0;
+        i += 1;
+    }
+
+    format!("{:.1}{}", size_f, units[i])
+}
+
+fn format_system_time(system_time: SystemTime) -> String {
+    let datetime: DateTime<Utc> = system_time.into();
+    let local_datetime = datetime.with_timezone(&chrono::Local);
+    let formatted_time = local_datetime.format("%d %b %Y at %I:%M %p");
+    formatted_time.to_string()
+}
+
 impl ColumnOperations<FileBrowserRow, FileBrowserColumns, FileBrowserConfig> for FileBrowserColumns {
     fn create_header(&self, ui: &mut Ui, sort_order: Option<SortOrder>, _table: &mut SelectableTable<FileBrowserRow, FileBrowserColumns, FileBrowserConfig>) -> Option<Response> {
-        let text = match self {
-            FileBrowserColumns::PathType => " ",
+        let mut text = match self {
+            FileBrowserColumns::PathType => "",
             FileBrowserColumns::Name => "Name",
             FileBrowserColumns::NewName => "New Name",
             FileBrowserColumns::Size => "Size",
@@ -252,17 +286,18 @@ impl ColumnOperations<FileBrowserRow, FileBrowserColumns, FileBrowserConfig> for
             FileBrowserColumns::DateCreated => "Date Created",
             FileBrowserColumns::Kind => "Kind",
         }.to_string();
-
         let selected = if let Some(sort) = sort_order {
-            match sort {
-                SortOrder::Ascending => format!("{} {}", text, egui_phosphor::regular::SORT_ASCENDING),
-                SortOrder::Descending => format!("{} {}", text, egui_phosphor::regular::SORT_DESCENDING),
+            text = match sort {
+                SortOrder::Ascending => format!("{} {}", text, egui_phosphor::regular::SORT_DESCENDING),
+                SortOrder::Descending => format!("{} {}", text, egui_phosphor::regular::SORT_ASCENDING),
             }.to_string();
             true
         } else {
             false
         };
-        let response = ui.add_sized(ui.available_size(), SelectableLabel::new(selected, text));
+
+        let label_text = RichText::new(text).strong();
+        let response = ui.add_sized(ui.available_size(), SelectableLabel::new(selected, label_text));
         Some(response)
     }
 
@@ -278,12 +313,17 @@ impl ColumnOperations<FileBrowserRow, FileBrowserColumns, FileBrowserConfig> for
             FileBrowserColumns::Kind => row_data.kind.to_string(),
         };
 
-        // let _is_selected = column_selected;
-        let label = ui.add_sized(
-            ui.available_size(),
-            egui::Label::new(row_text),
-        );
-        label
+        match self {
+            FileBrowserColumns::PathType => {
+                // center aligned content
+                ui.add_sized(
+                    ui.available_size(),
+                    Label::new(&row_text),
+                )
+            }
+            // left aligned content
+            _ => ui.add(Label::new(row_text)),
+        }
     }
 
     fn column_text(&self, row: &FileBrowserRow) -> String {
