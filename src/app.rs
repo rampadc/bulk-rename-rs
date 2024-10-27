@@ -139,11 +139,12 @@ impl eframe::App for TemplateApp {
                         let mut new_row = FileBrowserRow {
                             name: "".to_string(),
                             new_name: "".to_string(),
-                            size: "--".to_string(),
+                            size_ui: "--".to_string(),
                             date_modified: "".to_string(),
                             date_created: "".to_string(),
                             kind: "".to_string(),
                             path_type: "*".to_string(),
+                            size: 0,
                         };
                         if let Ok(name) = path.file_name().into_string() {
                             new_row.name = name.clone();
@@ -156,7 +157,8 @@ impl eframe::App for TemplateApp {
                             if let Ok(date_modified) = metadata.modified() {
                                 new_row.date_modified = format_system_time(date_modified);
                             }
-                            new_row.size = format_size(metadata.len());
+                            new_row.size_ui = format_size(metadata.len());
+                            new_row.size = metadata.len();
 
                             if metadata.is_dir() {
                                 new_row.path_type = format!("{}", egui_phosphor::regular::FOLDER);
@@ -223,7 +225,8 @@ pub struct FileBrowserConfig {}
 struct FileBrowserRow {
     name: String,
     new_name: String,
-    size: String,
+    size_ui: String,
+    size: u64,
     date_modified: String,
     date_created: String,
     kind: String,
@@ -303,15 +306,7 @@ impl ColumnOperations<FileBrowserRow, FileBrowserColumns, FileBrowserConfig> for
 
     fn create_table_row(&self, ui: &mut Ui, row: &SelectableRow<FileBrowserRow, FileBrowserColumns>, _column_selected: bool, _table: &mut SelectableTable<FileBrowserRow, FileBrowserColumns, FileBrowserConfig>) -> Response {
         let row_data = &row.row_data;
-        let row_text = match self {
-            FileBrowserColumns::PathType => row_data.path_type.to_string(),
-            FileBrowserColumns::Name => row_data.name.to_string(),
-            FileBrowserColumns::NewName => row_data.new_name.to_string(),
-            FileBrowserColumns::Size => row_data.size.to_string(),
-            FileBrowserColumns::DateModified => row_data.date_modified.to_string(),
-            FileBrowserColumns::DateCreated => row_data.date_created.to_string(),
-            FileBrowserColumns::Kind => row_data.kind.to_string(),
-        };
+        let row_text = self.assign_row_column(row_data);
 
         match self {
             FileBrowserColumns::PathType => {
@@ -327,11 +322,17 @@ impl ColumnOperations<FileBrowserRow, FileBrowserColumns, FileBrowserConfig> for
     }
 
     fn column_text(&self, row: &FileBrowserRow) -> String {
+        self.assign_row_column(row)
+    }
+}
+
+impl FileBrowserColumns {
+    fn assign_row_column(&self, row: &FileBrowserRow) -> String {
         match self {
             FileBrowserColumns::PathType => row.path_type.to_string(),
             FileBrowserColumns::Name => row.name.to_string(),
             FileBrowserColumns::NewName => row.new_name.to_string(),
-            FileBrowserColumns::Size => row.size.to_string(),
+            FileBrowserColumns::Size => row.size_ui.to_string(),
             FileBrowserColumns::DateModified => row.date_modified.to_string(),
             FileBrowserColumns::DateCreated => row.date_created.to_string(),
             FileBrowserColumns::Kind => row.kind.to_string(),
