@@ -114,7 +114,7 @@ impl eframe::App for TemplateApp {
             // The top panel is often a good place for a menu bar:
             egui::menu::bar(ui, |ui| {
                 egui::widgets::global_theme_preference_buttons(ui);
-                ui.label("[Use Ctrl to multi-select, or drag]");
+                ui.label("[Use Ctrl to multi-select, or select & drag]");
             });
         });
 
@@ -187,15 +187,21 @@ impl eframe::App for TemplateApp {
                 let mut table = builder
                     .striped(true)
                     .resizable(true)
-                    .cell_layout(Layout::left_to_right(Align::LEFT))
-                    .drag_to_scroll(false)
+                    .cell_layout(Layout::top_down_justified(Align::LEFT))
+                    .drag_to_scroll(true)
                     .auto_shrink([false; 2]);
 
                 for fb_column in FileBrowserColumns::iter() {
-                    let mut column = Column::initial(150.0);
-                    if fb_column == FileBrowserColumns::PathType {
-                        column = column.at_least(25.0);
-                        column = column.at_most(25.0);
+                    let mut column = Column::initial(250.0);
+                    match fb_column {
+                        FileBrowserColumns::PathType => {
+                            column = column.at_least(25.0);
+                            column = column.at_most(25.0);
+                        }
+                        FileBrowserColumns::Size => {
+                            column = column.at_most(80.0);
+                        }
+                        _ => {}
                     }
                     table = table.column(column);
                 }
