@@ -184,7 +184,7 @@ impl eframe::App for TemplateApp {
             });
         });
 
-        egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
+        egui::SidePanel::right("editor_panel").show(ctx, |ui| {
             ui.add_space(8.0);
             ui.group(|ui| {
                 Grid::new("regex")
