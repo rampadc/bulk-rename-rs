@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use egui::{Align, Layout, Response, RichText, SelectableLabel, Ui};
+use egui::{Align, Grid, Label, Layout, Response, RichText, SelectableLabel, Ui};
 use egui_extras::Column;
 use egui_selectable_table::{ColumnOperations, ColumnOrdering, SelectableRow, SelectableTable, SortOrder};
 use mime_db::lookup;
@@ -62,6 +62,10 @@ pub struct TemplateApp {
     tx: Sender<String>,
     #[serde(skip)]
     rx: Receiver<String>,
+
+    regex_match: String,
+    regex_substitution: String,
+    regex_including_extension: bool,
 }
 
 impl Default for TemplateApp {
@@ -76,6 +80,10 @@ impl Default for TemplateApp {
             is_first_load: true,
             tx,
             rx,
+
+            regex_match: "".to_string(),
+            regex_substitution: "".to_string(),
+            regex_including_extension: false,
         }
     }
 }
@@ -119,12 +127,32 @@ impl eframe::App for TemplateApp {
         });
 
         egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                powered_by_egui_and_eframe(ui);
-                egui::warn_if_debug_build(ui);
-            });
-        });
+            ui.add_space(8.0);
+            // Regex
+            ui.group(|ui| {
+                Grid::new("regex")
+                    .num_columns(2)
+                    .spacing([40.0, 4.0])
+                    .striped(true)
+                    .show(ui, |ui| {
+                        // Regex
+                        ui.add(Label::new(RichText::new("Regex").strong()));
+                        ui.end_row();
 
+                        ui.add(Label::new("Match"));
+                        ui.text_edit_singleline(&mut self.regex_match);
+                        ui.end_row();
+
+                        ui.add(Label::new("Replace"));
+                        ui.text_edit_singleline(&mut self.regex_substitution);
+                        ui.end_row();
+
+                        ui.checkbox(&mut self.regex_including_extension, "Include extension");
+                        ui.end_row();
+                    });
+            });
+            ui.add_space(8.0);
+        });
 
         egui::CentralPanel::default().show(ctx, |ui| {
             if let Ok(selected_new_path) = self.rx.try_recv() {
@@ -273,20 +301,6 @@ impl eframe::App for TemplateApp {
             ctx.request_repaint();
         });
     }
-}
-
-fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 0.0;
-        ui.label("Powered by ");
-        ui.hyperlink_to("egui", "https://github.com/emilk/egui");
-        ui.label(" and ");
-        ui.hyperlink_to(
-            "eframe",
-            "https://github.com/emilk/egui/tree/master/crates/eframe",
-        );
-        ui.label(".");
-    });
 }
 
 // File browser config
