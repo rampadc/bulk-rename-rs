@@ -8,10 +8,42 @@ use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::fs;
 use std::path::Path;
+use std::sync::mpsc::{Receiver, Sender};
 use std::time::SystemTime;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
+struct FileBrowserPath {
+    directory_path: String,
+}
+
+impl FileBrowserPath {
+    fn navigate_to(directory_path: &str, from: &str) -> Self {
+        let new_path = format!("{}/{}", from, directory_path);
+        match fs::canonicalize(new_path) {
+            Ok(path) => {
+                if path.exists() {
+                    FileBrowserPath {
+                        directory_path: path.to_str().unwrap().to_string(),
+                    }
+                } else {
+                    FileBrowserPath {
+                        directory_path: "".to_string(),
+                    }
+                }
+            }
+            Err(_) => {
+                FileBrowserPath {
+                    directory_path: "".to_string(),
+                }
+            }
+        }
+    }
+
+    fn get_path(&self) -> String {
+        self.directory_path.clone()
+    }
+}
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -26,10 +58,15 @@ pub struct TemplateApp {
     file_browser_table: SelectableTable<FileBrowserRow, FileBrowserColumns, FileBrowserConfig>,
     #[serde(skip)]
     file_browser_config: FileBrowserConfig,
+    #[serde(skip)]
+    tx: Sender<String>,
+    #[serde(skip)]
+    rx: Receiver<String>,
 }
 
 impl Default for TemplateApp {
     fn default() -> Self {
+        let (tx, rx) = std::sync::mpsc::channel();
         Self {
             directory_path: "~".resolve().to_str().unwrap().to_string(),
             working_path: "~".resolve().to_str().unwrap().to_string(),
@@ -37,6 +74,8 @@ impl Default for TemplateApp {
             file_browser_config: FileBrowserConfig {},
             path_changed: false,
             is_first_load: true,
+            tx,
+            rx,
         }
     }
 }
@@ -88,6 +127,11 @@ impl eframe::App for TemplateApp {
 
 
         egui::CentralPanel::default().show(ctx, |ui| {
+            if let Ok(selected_new_path) = self.rx.try_recv() {
+                self.directory_path = selected_new_path.clone();
+                self.working_path = selected_new_path.clone();
+                self.path_changed = true;
+            }
             ui.horizontal_top(|ui| {
                 if ui.button(format!("{}", egui_phosphor::regular::ARROW_SQUARE_UP)).clicked() {
                     match fs::canonicalize(format!("{}/..", &self.directory_path)) {
@@ -179,6 +223,8 @@ impl eframe::App for TemplateApp {
                                 kind: "".to_string(),
                                 path_type: "*".to_string(),
                                 size: 0,
+                                absolute_path: self.directory_path.clone(),
+                                tx: self.tx.clone(),
                             };
                             if let Ok(name) = path.file_name().into_string() {
                                 new_row.name = name.clone();
@@ -242,7 +288,7 @@ fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
 #[derive(Default, Clone, Copy)]
 pub struct FileBrowserConfig {}
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 struct FileBrowserRow {
     name: String,
     new_name: String,
@@ -252,6 +298,8 @@ struct FileBrowserRow {
     date_created: String,
     kind: String,
     path_type: String,
+    tx: Sender<String>,
+    absolute_path: String,
 }
 #[derive(Eq, PartialEq, Debug, Ord, PartialOrd, Clone, Copy, Hash, Default, EnumIter)]
 enum FileBrowserColumns {
@@ -346,6 +394,18 @@ impl ColumnOperations<FileBrowserRow, FileBrowserColumns, FileBrowserConfig> for
                 ui.close_menu();
             }
         });
+        if response.double_clicked() {
+            if row_data.kind == "Folder" {
+                let new_path = FileBrowserPath::navigate_to(
+                    &row_data.name,
+                    &row_data.absolute_path,
+                );
+                if new_path.get_path().len() > 0 {
+                    let _ = row_data.tx.send(new_path.get_path());
+                }
+            }
+        }
+
 
         response
     }
