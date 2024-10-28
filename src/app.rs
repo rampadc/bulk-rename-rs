@@ -66,6 +66,38 @@ pub struct TemplateApp {
     regex_match: String,
     regex_substitution: String,
     regex_including_extension: bool,
+
+    replace_match: String,
+    replace_with: String,
+    replace_case_sensitive: bool,
+    replace_first_only: bool,
+
+    remove_first_n: String,
+    remove_last_n: String,
+    remove_from: String,
+    remove_to: String,
+    remove_chars: String,
+    remove_words: String,
+    remove_trim: bool,
+    remove_digits: bool,
+    remove_accents: bool,
+
+    add_prefix: String,
+    add_insert: String,
+    add_at_pos: String,
+    add_suffix: String,
+    add_word_space: bool,
+
+    auto_date_type: String,
+    auto_date_format: String,
+
+    numbering_mode: String,
+    numbering_at: String,
+    numbering_start: String,
+    numbering_increment: String,
+    numbering_pad: String,
+    numbering_break: String,
+    numbering_base: String,
 }
 
 impl Default for TemplateApp {
@@ -80,10 +112,36 @@ impl Default for TemplateApp {
             is_first_load: true,
             tx,
             rx,
-
             regex_match: "".to_string(),
             regex_substitution: "".to_string(),
             regex_including_extension: false,
+            replace_match: "".to_string(),
+            replace_with: "".to_string(),
+            replace_case_sensitive: false,
+            replace_first_only: false,
+            remove_first_n: "".to_string(),
+            remove_last_n: "".to_string(),
+            remove_from: "".to_string(),
+            remove_to: "".to_string(),
+            remove_chars: "".to_string(),
+            remove_words: "".to_string(),
+            remove_trim: false,
+            remove_digits: false,
+            remove_accents: false,
+            add_prefix: "".to_string(),
+            add_insert: "".to_string(),
+            add_at_pos: "".to_string(),
+            add_suffix: "".to_string(),
+            add_word_space: false,
+            auto_date_type: "".to_string(),
+            auto_date_format: "".to_string(),
+            numbering_mode: "".to_string(),
+            numbering_at: "".to_string(),
+            numbering_start: "".to_string(),
+            numbering_increment: "".to_string(),
+            numbering_pad: "".to_string(),
+            numbering_break: "".to_string(),
+            numbering_base: "".to_string(),
         }
     }
 }
@@ -128,7 +186,6 @@ impl eframe::App for TemplateApp {
 
         egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
             ui.add_space(8.0);
-            // Regex
             ui.group(|ui| {
                 Grid::new("regex")
                     .num_columns(2)
@@ -148,6 +205,65 @@ impl eframe::App for TemplateApp {
                         ui.end_row();
 
                         ui.checkbox(&mut self.regex_including_extension, "Include extension");
+                        ui.end_row();
+                    });
+            });
+            ui.group(|ui| {
+                Grid::new("replace")
+                    .num_columns(2)
+                    .spacing([40.0, 4.0])
+                    .striped(true)
+                    .show(ui, |ui| {
+                        // Regex
+                        ui.add(Label::new(RichText::new("Replace").strong()));
+                        ui.end_row();
+
+                        ui.add(Label::new("Replace"));
+                        ui.text_edit_singleline(&mut self.replace_match);
+                        ui.end_row();
+
+                        ui.add(Label::new("With"));
+                        ui.text_edit_singleline(&mut self.replace_with);
+                        ui.end_row();
+
+                        ui.horizontal(|ui| {
+                            ui.checkbox(&mut self.replace_case_sensitive, "Match case");
+                            ui.checkbox(&mut self.replace_first_only, "First");
+                        });
+                        ui.end_row();
+                    });
+            });
+            ui.group(|ui| {
+                Grid::new("remove")
+                    .num_columns(4)
+                    .spacing([40.0, 4.0])
+                    .striped(true)
+                    .show(ui, |ui| {
+                        // Regex
+                        ui.add(Label::new(RichText::new("Remove").strong()));
+                        ui.end_row();
+
+                        ui.add(Label::new("First n"));
+                        ui.text_edit_singleline(&mut self.remove_first_n);
+                        ui.add(Label::new("Last n"));
+                        ui.text_edit_singleline(&mut self.remove_last_n);
+                        ui.end_row();
+
+                        ui.add(Label::new("From"));
+                        ui.text_edit_singleline(&mut self.remove_from);
+                        ui.add(Label::new("To"));
+                        ui.text_edit_singleline(&mut self.remove_to);
+                        ui.end_row();
+
+                        ui.add(Label::new("Chars"));
+                        ui.text_edit_singleline(&mut self.remove_chars);
+                        ui.add(Label::new("Words"));
+                        ui.text_edit_singleline(&mut self.remove_words);
+                        ui.end_row();
+
+                        ui.checkbox(&mut self.remove_digits, "Digits");
+                        ui.checkbox(&mut self.remove_accents, "Accents");
+                        ui.checkbox(&mut self.remove_trim, "Trim");
                         ui.end_row();
                     });
             });
