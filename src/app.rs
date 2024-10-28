@@ -66,11 +66,17 @@ pub struct TemplateApp {
     regex_match: String,
     regex_substitution: String,
     regex_including_extension: bool,
+    regex_enabled: bool,
+
+    case_type: String,
+    case_exception: String,
+    case_enabled: bool,
 
     replace_match: String,
     replace_with: String,
     replace_case_sensitive: bool,
     replace_first_only: bool,
+    replace_enabled: bool,
 
     remove_first_n: String,
     remove_last_n: String,
@@ -81,23 +87,29 @@ pub struct TemplateApp {
     remove_trim: bool,
     remove_digits: bool,
     remove_accents: bool,
+    remove_enabled: bool,
 
     add_prefix: String,
     add_insert: String,
     add_at_pos: String,
     add_suffix: String,
     add_word_space: bool,
+    add_enabled: bool,
 
     auto_date_type: String,
     auto_date_format: String,
+    auto_date_enabled: bool,
 
     numbering_mode: String,
     numbering_at: String,
     numbering_start: String,
     numbering_increment: String,
+    numbering_separator: String,
     numbering_pad: String,
     numbering_break: String,
     numbering_base: String,
+    numbering_base_case: String,
+    numbering_enabled: bool,
 }
 
 impl Default for TemplateApp {
@@ -115,10 +127,15 @@ impl Default for TemplateApp {
             regex_match: "".to_string(),
             regex_substitution: "".to_string(),
             regex_including_extension: false,
+            regex_enabled: false,
+            case_type: "".to_string(),
+            case_exception: "".to_string(),
+            case_enabled: false,
             replace_match: "".to_string(),
             replace_with: "".to_string(),
             replace_case_sensitive: false,
             replace_first_only: false,
+            replace_enabled: false,
             remove_first_n: "".to_string(),
             remove_last_n: "".to_string(),
             remove_from: "".to_string(),
@@ -128,20 +145,26 @@ impl Default for TemplateApp {
             remove_trim: false,
             remove_digits: false,
             remove_accents: false,
+            remove_enabled: false,
             add_prefix: "".to_string(),
             add_insert: "".to_string(),
             add_at_pos: "".to_string(),
             add_suffix: "".to_string(),
             add_word_space: false,
+            add_enabled: false,
             auto_date_type: "".to_string(),
             auto_date_format: "".to_string(),
+            auto_date_enabled: false,
             numbering_mode: "".to_string(),
             numbering_at: "".to_string(),
             numbering_start: "".to_string(),
+            numbering_separator: "".to_string(),
             numbering_increment: "".to_string(),
             numbering_pad: "".to_string(),
             numbering_break: "".to_string(),
             numbering_base: "".to_string(),
+            numbering_base_case: "".to_string(),
+            numbering_enabled: false,
         }
     }
 }
@@ -192,8 +215,7 @@ impl eframe::App for TemplateApp {
                     .spacing([40.0, 4.0])
                     .striped(true)
                     .show(ui, |ui| {
-                        // Regex
-                        ui.add(Label::new(RichText::new("Regex").strong()));
+                        ui.checkbox(&mut self.regex_enabled, RichText::new("Regex").strong());
                         ui.end_row();
 
                         ui.add(Label::new("Match"));
@@ -208,14 +230,33 @@ impl eframe::App for TemplateApp {
                         ui.end_row();
                     });
             });
+            ui.add_space(4.0);
+            ui.group(|ui| {
+                Grid::new("case")
+                    .num_columns(2)
+                    .spacing([40.0, 4.0])
+                    .striped(true)
+                    .show(ui, |ui| {
+                        ui.checkbox(&mut self.case_enabled, RichText::new("Case").strong());
+                        ui.end_row();
+
+                        ui.add(Label::new("Type"));
+                        ui.text_edit_singleline(&mut self.case_type);
+                        ui.end_row();
+
+                        ui.add(Label::new("Except"));
+                        ui.text_edit_singleline(&mut self.case_exception);
+                        ui.end_row();
+                    });
+            });
+            ui.add_space(4.0);
             ui.group(|ui| {
                 Grid::new("replace")
                     .num_columns(2)
                     .spacing([40.0, 4.0])
                     .striped(true)
                     .show(ui, |ui| {
-                        // Regex
-                        ui.add(Label::new(RichText::new("Replace").strong()));
+                        ui.checkbox(&mut self.replace_enabled, RichText::new("Replace").strong());
                         ui.end_row();
 
                         ui.add(Label::new("Replace"));
@@ -233,14 +274,14 @@ impl eframe::App for TemplateApp {
                         ui.end_row();
                     });
             });
+            ui.add_space(4.0);
             ui.group(|ui| {
                 Grid::new("remove")
                     .num_columns(4)
                     .spacing([40.0, 4.0])
                     .striped(true)
                     .show(ui, |ui| {
-                        // Regex
-                        ui.add(Label::new(RichText::new("Remove").strong()));
+                        ui.checkbox(&mut self.remove_enabled, RichText::new("Remove").strong());
                         ui.end_row();
 
                         ui.add(Label::new("First n"));
@@ -267,6 +308,98 @@ impl eframe::App for TemplateApp {
                         ui.end_row();
                     });
             });
+            ui.add_space(4.0);
+            ui.group(|ui| {
+                Grid::new("add")
+                    .num_columns(2)
+                    .spacing([40.0, 4.0])
+                    .striped(true)
+                    .show(ui, |ui| {
+                        ui.checkbox(&mut self.add_enabled, RichText::new("Add").strong());
+                        ui.end_row();
+
+                        ui.add(Label::new("Prefix"));
+                        ui.text_edit_singleline(&mut self.add_prefix);
+                        ui.end_row();
+
+                        ui.add(Label::new("Insert"));
+                        ui.text_edit_singleline(&mut self.add_insert);
+                        ui.end_row();
+
+                        ui.add(Label::new("at pos"));
+                        ui.text_edit_singleline(&mut self.add_at_pos);
+                        ui.end_row();
+
+                        ui.add(Label::new("Suffix"));
+                        ui.text_edit_singleline(&mut self.add_suffix);
+                        ui.end_row();
+
+                        ui.checkbox(&mut self.add_word_space, "Word space");
+                        ui.end_row();
+                    });
+            });
+            ui.add_space(4.0);
+            ui.group(|ui| {
+                Grid::new("auto_date")
+                    .num_columns(2)
+                    .spacing([40.0, 4.0])
+                    .striped(true)
+                    .show(ui, |ui| {
+                        ui.checkbox(&mut self.auto_date_enabled, RichText::new("Auto Date").strong());
+                        ui.end_row();
+
+                        ui.add(Label::new("Date type"));
+                        ui.text_edit_singleline(&mut self.auto_date_type);
+                        ui.end_row();
+
+                        ui.add(Label::new("Format"));
+                        ui.text_edit_singleline(&mut self.auto_date_format);
+                        ui.end_row();
+                    });
+            });
+            ui.add_space(4.0);
+            ui.group(|ui| {
+                Grid::new("numbering")
+                    .num_columns(4)
+                    .spacing([40.0, 4.0])
+                    .striped(true)
+                    .show(ui, |ui| {
+                        ui.checkbox(&mut self.numbering_enabled, RichText::new("Numbering").strong());
+                        ui.end_row();
+
+                        ui.add(Label::new("Mode"));
+                        ui.text_edit_singleline(&mut self.numbering_mode);
+                        ui.add(Label::new("at"));
+                        ui.text_edit_singleline(&mut self.numbering_at);
+                        ui.end_row();
+
+                        ui.add(Label::new("Start"));
+                        ui.text_edit_singleline(&mut self.numbering_start);
+                        ui.add(Label::new("Incr."));
+                        ui.text_edit_singleline(&mut self.numbering_increment);
+                        ui.end_row();
+
+                        ui.add(Label::new("Pad"));
+                        ui.text_edit_singleline(&mut self.numbering_pad);
+                        ui.add(Label::new("Separator"));
+                        ui.text_edit_singleline(&mut self.numbering_separator);
+                        ui.end_row();
+
+                        ui.add(Label::new("Break"));
+                        ui.text_edit_singleline(&mut self.numbering_break);
+                        ui.end_row();
+
+                        ui.add(Label::new(RichText::new("Base").strong()));
+                        ui.end_row();
+
+                        ui.add(Label::new("Base"));
+                        ui.text_edit_singleline(&mut self.numbering_base);
+                        ui.add(Label::new("Case"));
+                        ui.text_edit_singleline(&mut self.numbering_base_case);
+                        ui.end_row();
+                    });
+            });
+
             ui.add_space(8.0);
         });
 
