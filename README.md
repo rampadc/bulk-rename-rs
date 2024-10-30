@@ -1,5 +1,7 @@
 # Bulk Rename[rs]
 
+![](docs/gui-progress.png)
+
 Bulk Rename [rs] aims to be a cross-platform bulk renaming tool. Greatly inspired by Windows' bulk rename utility, this tool aims to achieve just that cross-platform.
 
 Written in Rust using the `egui` library.
