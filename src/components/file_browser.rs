@@ -9,6 +9,7 @@ use mime_db::lookup;
 use resolve_path::PathResolveExt;
 use std::cmp::Ordering;
 use std::collections::HashMap;
+
 use std::fs;
 use std::path::Path;
 use std::time::SystemTime;
@@ -218,6 +219,7 @@ impl FileBrowser {
                             directory_absolute_path: self.directory_path.clone(),
                             tx: self.file_browser_row_path_tx.clone(),
                         };
+
                         if let Ok(name) = path.file_name().into_string() {
                             new_row.name = name.clone();
                             new_row.new_name = name.clone();
@@ -258,6 +260,7 @@ impl FileBrowser {
             self.is_first_load = false;
         }
 
+        self.selected_files.clear();
         for row in self.file_browser_table.get_selected_rows() {
             let row_data = row.row_data;
             self.selected_files.insert(

@@ -1,17 +1,15 @@
 
 use crate::components::file_browser::{FileBrowser};
+use crate::components::regex::RegexMutation;
 use egui::{Grid, Label, RichText};
+use crate::utilities::mutation_pipeline::MutationPipeline;
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct TemplateApp {
     file_browser: FileBrowser,
-
-    regex_match: String,
-    regex_substitution: String,
-    regex_including_extension: bool,
-    regex_enabled: bool,
+    regex_mutation: RegexMutation,
 
     case_type: String,
     case_exception: String,
@@ -61,10 +59,8 @@ impl Default for TemplateApp {
     fn default() -> Self {
         Self {
             file_browser: FileBrowser::new(),
-            regex_match: "".to_string(),
-            regex_substitution: "".to_string(),
-            regex_including_extension: false,
-            regex_enabled: false,
+            regex_mutation: RegexMutation::default(),
+
             case_type: "".to_string(),
             case_exception: "".to_string(),
             case_enabled: false,
@@ -133,9 +129,20 @@ impl eframe::App for TemplateApp {
 
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        let mut pipeline = MutationPipeline::new();
+        pipeline.add_mutation(Box::new(RegexMutation {
+            pattern: self.regex_mutation.pattern.clone(),
+            including_extension: self.regex_mutation.including_extension,
+            substitution: self.regex_mutation.substitution.clone(),
+            enabled: self.regex_mutation.enabled,
+        }));
+
         if let Ok(changing_files) = self.file_browser.selected_files_rx.try_recv() {
             // do stuff here
-            println!("{:?}", changing_files);
+            for (_, v) in changing_files {
+                let new_name = pipeline.apply_mutation(v.as_str());
+                println!("old: {:?}, new: {:?}", v, new_name);
+            }
         }
 
         // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
@@ -150,27 +157,7 @@ impl eframe::App for TemplateApp {
 
         egui::SidePanel::right("editor_panel").show(ctx, |ui| {
             ui.add_space(8.0);
-            ui.group(|ui| {
-                Grid::new("regex")
-                    .num_columns(2)
-                    .spacing([40.0, 4.0])
-                    .striped(true)
-                    .show(ui, |ui| {
-                        ui.checkbox(&mut self.regex_enabled, RichText::new("Regex").strong());
-                        ui.end_row();
-
-                        ui.add(Label::new("Match"));
-                        ui.text_edit_singleline(&mut self.regex_match);
-                        ui.end_row();
-
-                        ui.add(Label::new("Replace"));
-                        ui.text_edit_singleline(&mut self.regex_substitution);
-                        ui.end_row();
-
-                        ui.checkbox(&mut self.regex_including_extension, "Include extension");
-                        ui.end_row();
-                    });
-            });
+            self.regex_mutation.render(ui);
             ui.add_space(4.0);
             ui.group(|ui| {
                 Grid::new("case")
