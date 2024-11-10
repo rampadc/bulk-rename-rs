@@ -1,5 +1,5 @@
-
-use crate::components::file_browser::{FileBrowser};
+use std::collections::HashMap;
+use crate::components::file_browser::{FileAbsolutePath, FileBrowser, FileNewName};
 use crate::components::regex::RegexMutation;
 use egui::{Grid, Label, RichText};
 use crate::utilities::mutation_pipeline::MutationPipeline;
@@ -132,17 +132,18 @@ impl eframe::App for TemplateApp {
         let mut pipeline = MutationPipeline::new();
         pipeline.add_mutation(Box::new(RegexMutation {
             pattern: self.regex_mutation.pattern.clone(),
-            including_extension: self.regex_mutation.including_extension,
             substitution: self.regex_mutation.substitution.clone(),
             enabled: self.regex_mutation.enabled,
         }));
 
+        let mut new_names:HashMap<FileAbsolutePath, FileNewName> = HashMap::new();
         if let Ok(changing_files) = self.file_browser.selected_files_rx.try_recv() {
             // do stuff here
-            for (_, v) in changing_files {
+            for (k, v) in changing_files {
                 let new_name = pipeline.apply_mutation(v.as_str());
-                println!("old: {:?}, new: {:?}", v, new_name);
+                new_names.insert(k, new_name);
             }
+            self.file_browser.selected_files_new_name_tx.try_send(new_names).expect("Cannot send new names to file browser");
         }
 
         // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
