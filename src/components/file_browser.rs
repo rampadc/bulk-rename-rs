@@ -14,15 +14,19 @@ use std::time::SystemTime;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct FileBrowser {
     directory_path: String,
     path_changed: bool,
     working_path: String,
 
     is_first_load: bool,
+    #[serde(skip)]
     file_browser_table: SelectableTable<FileBrowserRow, FileBrowserColumns, FileBrowserConfig>,
-
+    #[serde(skip)]
     pub file_browser_row_path_tx: Sender<String>,
+    #[serde(skip)]
     file_browser_path_rx: Receiver<String>,
 }
 

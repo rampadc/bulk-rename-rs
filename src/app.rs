@@ -5,7 +5,6 @@ use egui::{Grid, Label, RichText};
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct TemplateApp {
-    #[serde(skip)]
     file_browser: FileBrowser,
 
     regex_match: String,
