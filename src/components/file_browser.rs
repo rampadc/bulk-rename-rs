@@ -8,6 +8,7 @@ use egui_selectable_table::{
 use mime_db::lookup;
 use resolve_path::PathResolveExt;
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use std::time::SystemTime;
@@ -25,15 +26,30 @@ pub struct FileBrowser {
     #[serde(skip)]
     file_browser_table: SelectableTable<FileBrowserRow, FileBrowserColumns, FileBrowserConfig>,
     #[serde(skip)]
-    pub file_browser_row_path_tx: Sender<String>,
+    file_browser_row_path_tx: Sender<String>,
     #[serde(skip)]
     file_browser_path_rx: Receiver<String>,
+
+    // selected files has structure { "absolute_path": { "name", "new_name" } }
+    selected_files: HashMap<FileAbsolutePath, FileName>,
+
+    #[serde(skip)]
+    selected_files_tx: Sender<HashMap<FileAbsolutePath, FileName>>,
+    #[serde(skip)]
+    pub selected_files_rx: Receiver<HashMap<FileAbsolutePath, FileName>>,
+
+    #[serde(skip)]
+    pub selected_files_new_name_tx: Sender<HashMap<FileAbsolutePath, FileNewName>>,
+    #[serde(skip)]
+    selected_files_new_name_rx: Receiver<HashMap<FileAbsolutePath, FileNewName>>,
 }
 
 impl Default for FileBrowser {
     fn default() -> Self {
         let home_path = "~".resolve().to_str().unwrap().to_string();
         let (tx, rx) = crossbeam::channel::unbounded::<String>();
+        let (tx2, rx2) = crossbeam::channel::unbounded::<HashMap<FileAbsolutePath, FileName>>();
+        let (tx3, rx3) = crossbeam::channel::unbounded::<HashMap<FileAbsolutePath, FileNewName>>();
 
         Self {
             is_first_load: true,
@@ -42,9 +58,15 @@ impl Default for FileBrowser {
             working_path: home_path.clone(),
 
             file_browser_table: SelectableTable::new(FileBrowserColumns::iter().collect()),
-
-            file_browser_path_rx: rx.clone(),
             file_browser_row_path_tx: tx.clone(),
+            file_browser_path_rx: rx.clone(),
+
+            selected_files: HashMap::new(),
+            selected_files_tx: tx2.clone(),
+            selected_files_rx: rx2.clone(),
+
+            selected_files_new_name_tx: tx3.clone(),
+            selected_files_new_name_rx: rx3.clone(),
         }
     }
 }
@@ -193,7 +215,7 @@ impl FileBrowser {
                             kind: "".to_string(),
                             path_type: "*".to_string(),
                             size: 0,
-                            absolute_path: self.directory_path.clone(),
+                            directory_absolute_path: self.directory_path.clone(),
                             tx: self.file_browser_row_path_tx.clone(),
                         };
                         if let Ok(name) = path.file_name().into_string() {
@@ -222,6 +244,7 @@ impl FileBrowser {
                                 new_row.kind = "symlink".to_string();
                             }
                         }
+
                         Some(new_row)
                     });
                 } else {
@@ -234,8 +257,21 @@ impl FileBrowser {
             self.path_changed = false;
             self.is_first_load = false;
         }
+
+        for row in self.file_browser_table.get_selected_rows() {
+            let row_data = row.row_data;
+            self.selected_files.insert(
+                format!("{}/{}", row_data.directory_absolute_path, row_data.name) as FileAbsolutePath,
+                row_data.name as FileName,
+            );
+        }
+        self.selected_files_tx.try_send(self.selected_files.clone()).expect("Cannot send selected files to app");
     }
 }
+
+pub type FileAbsolutePath = String;
+pub type FileName = String;
+pub type FileNewName = String;
 
 #[derive(Default, Clone, Copy)]
 pub struct FileBrowserConfig {}
@@ -251,7 +287,7 @@ struct FileBrowserRow {
     kind: String,
     path_type: String,
     tx: Sender<String>,
-    absolute_path: String,
+    directory_absolute_path: String,
 }
 #[derive(Eq, PartialEq, Debug, Ord, PartialOrd, Clone, Copy, Hash, Default, EnumIter)]
 enum FileBrowserColumns {
@@ -368,7 +404,7 @@ impl ColumnOperations<FileBrowserRow, FileBrowserColumns, FileBrowserConfig>
         });
         if response.double_clicked() {
             if row_data.kind == "Folder" {
-                let new_path = FileBrowser::navigate_to(&row_data.name, &row_data.absolute_path);
+                let new_path = FileBrowser::navigate_to(&row_data.name, &row_data.directory_absolute_path);
                 if new_path.get_path().len() > 0 {
                     let _ = row_data.tx.send(new_path.get_path());
                 }

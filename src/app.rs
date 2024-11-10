@@ -1,4 +1,5 @@
-use crate::components::file_browser::FileBrowser;
+
+use crate::components::file_browser::{FileBrowser};
 use egui::{Grid, Label, RichText};
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -132,6 +133,11 @@ impl eframe::App for TemplateApp {
 
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        if let Ok(changing_files) = self.file_browser.selected_files_rx.try_recv() {
+            // do stuff here
+            println!("{:?}", changing_files);
+        }
+
         // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
         // For inspiration and more examples, go to https://emilk.github.io/egui
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
