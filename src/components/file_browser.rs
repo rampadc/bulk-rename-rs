@@ -39,6 +39,7 @@ pub struct FileBrowser {
     #[serde(skip)]
     pub selected_files_rx: Receiver<HashMap<FileAbsolutePath, FileName>>,
 
+    selected_files_new_name: HashMap<FileAbsolutePath, FileNewName>,
     #[serde(skip)]
     pub selected_files_new_name_tx: Sender<HashMap<FileAbsolutePath, FileNewName>>,
     #[serde(skip)]
@@ -66,6 +67,7 @@ impl Default for FileBrowser {
             selected_files_tx: tx2.clone(),
             selected_files_rx: rx2.clone(),
 
+            selected_files_new_name: HashMap::new(),
             selected_files_new_name_tx: tx3.clone(),
             selected_files_new_name_rx: rx3.clone(),
         }
@@ -105,10 +107,15 @@ impl FileBrowser {
     }
 
     pub fn render(&mut self, ui: &mut Ui) {
+
         if let Ok(selected_new_path) = self.file_browser_path_rx.try_recv() {
             self.directory_path = selected_new_path.clone();
             self.working_path = selected_new_path.clone();
             self.path_changed = true;
+        }
+
+        if let Ok(new_filenames) = self.selected_files_new_name_rx.try_recv() {
+            self.selected_files_new_name = new_filenames;
         }
 
         ui.horizontal_top(|ui| {
@@ -258,6 +265,18 @@ impl FileBrowser {
 
             self.path_changed = false;
             self.is_first_load = false;
+        } else {
+            // Files are already loaded, modify rows only
+            self.file_browser_table.modify_shown_row(|formatted_rows, _indexed_ids| {
+                for row in formatted_rows {
+                    let row_data = &row.row_data;
+                    let absolute_path =
+                        format!("{}/{}", row_data.directory_absolute_path, row_data.name);
+                    if let Some(new_name) = self.selected_files_new_name.get(&absolute_path) {
+                        row.row_data.new_name = new_name.clone();
+                    }
+                }
+            });
         }
 
         self.selected_files.clear();
