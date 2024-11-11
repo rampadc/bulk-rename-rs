@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use crate::components::file_browser::{FileAbsolutePath, FileBrowser, FileNewName};
 use crate::components::regex::RegexMutation;
 use egui::{Grid, Label, RichText};
-use crate::components::case::{CaseMutation, CaseType};
+use crate::components::case::{CaseMutation};
 use crate::utilities::mutation_pipeline::MutationPipeline;
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.

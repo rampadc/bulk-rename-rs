@@ -266,6 +266,14 @@ impl FileBrowser {
             self.path_changed = false;
             self.is_first_load = false;
         } else {
+            // Reset all rows new names
+            self.file_browser_table.modify_shown_row(|formatted_rows, _indexed_ids| {
+                for row in formatted_rows {
+                    let row_data = &row.row_data;
+                    let existing_name = row_data.name.clone();
+                    row.row_data.new_name = existing_name;
+                }
+            });
             // Files are already loaded, modify rows only
             self.file_browser_table.modify_shown_row(|formatted_rows, _indexed_ids| {
                 for row in formatted_rows {

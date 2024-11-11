@@ -21,6 +21,8 @@ pub enum CaseType {
     SnakeCase,
     TitleCase,
     KebabCase,
+    UpperCase,
+    LowerCase,
 }
 
 impl fmt::Display for CaseType {
@@ -34,6 +36,8 @@ impl fmt::Display for CaseType {
             CaseType::SnakeCase => write!(f, "snake_case"),
             CaseType::TitleCase => write!(f, "Title Case"),
             CaseType::KebabCase => write!(f, "kebab-case"),
+            CaseType::UpperCase => write!(f, "UPPER CASE"),
+            CaseType::LowerCase => write!(f, "lower case"),
         }
     }
 }
@@ -74,6 +78,15 @@ impl CaseMutation {
                 });
         });
     }
+
+    fn extract_base_name(filename: &str) -> String {
+        if filename.starts_with('.') {
+            filename.to_string()
+        } else {
+            filename.split('.').next().unwrap().to_string()
+        }
+    }
+
 }
 
 impl Mutation for CaseMutation {
@@ -88,6 +101,8 @@ impl Mutation for CaseMutation {
                 CaseType::SnakeCase => heck::AsSnakeCase(input).to_string(),
                 CaseType::TitleCase => heck::AsTitleCase(input).to_string(),
                 CaseType::KebabCase => heck::AsTrainCase(input).to_string(),
+                CaseType::UpperCase => input.to_uppercase().to_string(),
+                CaseType::LowerCase => input.to_lowercase().to_string(),
             }
         } else {
             input.to_string()
