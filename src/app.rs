@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use crate::components::file_browser::{FileAbsolutePath, FileBrowser, FileNewName};
 use crate::components::regex::RegexMutation;
 use egui::{Grid, Label, RichText};
+use crate::components::case::{CaseMutation, CaseType};
 use crate::utilities::mutation_pipeline::MutationPipeline;
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -10,10 +11,7 @@ use crate::utilities::mutation_pipeline::MutationPipeline;
 pub struct TemplateApp {
     file_browser: FileBrowser,
     regex_mutation: RegexMutation,
-
-    case_type: String,
-    case_exception: String,
-    case_enabled: bool,
+    case_mutation: CaseMutation,
 
     replace_match: String,
     replace_with: String,
@@ -60,10 +58,7 @@ impl Default for TemplateApp {
         Self {
             file_browser: FileBrowser::new(),
             regex_mutation: RegexMutation::default(),
-
-            case_type: "".to_string(),
-            case_exception: "".to_string(),
-            case_enabled: false,
+            case_mutation: CaseMutation::default(),
             replace_match: "".to_string(),
             replace_with: "".to_string(),
             replace_case_sensitive: false,
@@ -135,6 +130,10 @@ impl eframe::App for TemplateApp {
             substitution: self.regex_mutation.substitution.clone(),
             enabled: self.regex_mutation.enabled,
         }));
+        pipeline.add_mutation(Box::new(CaseMutation {
+            enabled: self.case_mutation.enabled,
+            case_type: self.case_mutation.case_type.clone(),
+        }));
 
         let mut new_names:HashMap<FileAbsolutePath, FileNewName> = HashMap::new();
         if let Ok(changing_files) = self.file_browser.selected_files_rx.try_recv() {
@@ -160,24 +159,7 @@ impl eframe::App for TemplateApp {
             ui.add_space(8.0);
             self.regex_mutation.render(ui);
             ui.add_space(4.0);
-            ui.group(|ui| {
-                Grid::new("case")
-                    .num_columns(2)
-                    .spacing([40.0, 4.0])
-                    .striped(true)
-                    .show(ui, |ui| {
-                        ui.checkbox(&mut self.case_enabled, RichText::new("Case").strong());
-                        ui.end_row();
-
-                        ui.add(Label::new("Type"));
-                        ui.text_edit_singleline(&mut self.case_type);
-                        ui.end_row();
-
-                        ui.add(Label::new("Except"));
-                        ui.text_edit_singleline(&mut self.case_exception);
-                        ui.end_row();
-                    });
-            });
+            self.case_mutation.render(ui);
             ui.add_space(4.0);
             ui.group(|ui| {
                 Grid::new("replace")

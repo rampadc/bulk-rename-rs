@@ -664,6 +664,7 @@ dependencies = [
  "egui-selectable-table",
  "egui_extras",
  "env_logger",
+ "heck",
  "log",
  "mime-db",
  "regex",
